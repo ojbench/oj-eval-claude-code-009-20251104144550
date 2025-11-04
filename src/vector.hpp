@@ -238,8 +238,16 @@ public:
 			data = nullptr;
 		} else {
 			data = static_cast<T*>(operator new[](current_capacity * sizeof(T)));
-			for (size_t i = 0; i < current_size; ++i) {
-				new (data + i) T(other.data[i]);
+			try {
+				for (size_t i = 0; i < current_size; ++i) {
+					new (data + i) T(other.data[i]);
+				}
+			} catch (...) {
+				for (size_t j = 0; j < current_size; ++j) {
+					data[j].~T();
+				}
+				operator delete[](data);
+				throw;
 			}
 		}
 	}
@@ -258,22 +266,24 @@ public:
 	vector &operator=(const vector &other) {
 		if (this == &other) return *this;
 
-		clear();
-		operator delete[](data);
+		vector temp(other);
+		swap(temp);
 
+		return *this;
+	}
+
+	void swap(vector &other) {
+		T* temp_data = data;
+		size_t temp_size = current_size;
+		size_t temp_capacity = current_capacity;
+
+		data = other.data;
 		current_size = other.current_size;
 		current_capacity = other.current_capacity;
 
-		if (current_capacity == 0) {
-			data = nullptr;
-		} else {
-			data = static_cast<T*>(operator new[](current_capacity * sizeof(T)));
-			for (size_t i = 0; i < current_size; ++i) {
-				new (data + i) T(other.data[i]);
-			}
-		}
-
-		return *this;
+		other.data = temp_data;
+		other.current_size = temp_size;
+		other.current_capacity = temp_capacity;
 	}
 
 	/**
@@ -390,14 +400,28 @@ public:
 			size_t new_capacity = (current_capacity == 0) ? 1 : current_capacity * 2;
 			T* new_data = static_cast<T*>(operator new[](new_capacity * sizeof(T)));
 
-			for (size_t i = 0; i < index; ++i) {
-				new (new_data + i) T(data[i]);
-			}
+			try {
+				for (size_t i = 0; i < index; ++i) {
+					new (new_data + i) T(data[i]);
+				}
 
-			new (new_data + index) T(value);
+				new (new_data + index) T(value);
 
-			for (size_t i = index; i < current_size; ++i) {
-				new (new_data + i + 1) T(data[i]);
+				for (size_t i = index; i < current_size; ++i) {
+					new (new_data + i + 1) T(data[i]);
+				}
+			} catch (...) {
+				for (size_t j = 0; j < index; ++j) {
+					new_data[j].~T();
+				}
+				if (index <= current_size) {
+					new_data[index].~T();
+				}
+				for (size_t j = index; j < current_size; ++j) {
+					new_data[j + 1].~T();
+				}
+				operator delete[](new_data);
+				throw;
 			}
 
 			for (size_t i = 0; i < current_size; ++i) {
@@ -470,11 +494,18 @@ public:
 			size_t new_capacity = (current_capacity == 0) ? 1 : current_capacity * 2;
 			T* new_data = static_cast<T*>(operator new[](new_capacity * sizeof(T)));
 
-			for (size_t i = 0; i < current_size; ++i) {
-				new (new_data + i) T(data[i]);
+			try {
+				for (size_t i = 0; i < current_size; ++i) {
+					new (new_data + i) T(data[i]);
+				}
+				new (new_data + current_size) T(value);
+			} catch (...) {
+				for (size_t j = 0; j < current_size; ++j) {
+					new_data[j].~T();
+				}
+				operator delete[](new_data);
+				throw;
 			}
-
-			new (new_data + current_size) T(value);
 
 			for (size_t i = 0; i < current_size; ++i) {
 				data[i].~T();
